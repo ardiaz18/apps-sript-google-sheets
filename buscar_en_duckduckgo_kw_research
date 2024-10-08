@@ -1,0 +1,118 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "authorship_tag": "ABX9TyPlTh+2LaOCxqgMgxrREy60",
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/ardiaz18/apps-sript-google-sheets/blob/main/buscar_en_duckduckgo_kw_research\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "UQUDeajmClnw"
+      },
+      "outputs": [],
+      "source": [
+        "import requests\n",
+        "from bs4 import BeautifulSoup\n",
+        "import os\n",
+        "import google.auth\n",
+        "from google.oauth2 import service_account\n",
+        "from googleapiclient.discovery import build\n",
+        "import time\n",
+        "\n",
+        "# Cargar las credenciales de Google Sheets\n",
+        "SCOPES = ['https://www.googleapis.com/auth/spreadsheets']\n",
+        "SERVICE_ACCOUNT_FILE = 'credentials.json'  # Aquí deberás usar tu archivo de credenciales\n",
+        "\n",
+        "# ID de la hoja de cálculo y el rango donde están las palabras clave\n",
+        "SPREADSHEET_ID = 'TU_SPREADSHEET_ID'  # Sustituir con el ID de tu hoja de cálculo\n",
+        "RANGO = 'Hoja1!A2:A'  # Cambiar si tus palabras clave están en otro rango\n",
+        "\n",
+        "# Autenticación de Google\n",
+        "creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)\n",
+        "service = build('sheets', 'v4', credentials=creds)\n",
+        "sheet = service.spreadsheets()\n",
+        "\n",
+        "# Función para buscar en DuckDuckGo dentro de un dominio específico\n",
+        "def buscar_duckduckgo(palabra_clave, dominio):\n",
+        "    # Construir la URL para buscar dentro del dominio\n",
+        "    url = f\"https://html.duckduckgo.com/html/?q=site:{dominio} {palabra_clave}\"\n",
+        "\n",
+        "    # Realizar la solicitud a DuckDuckGo\n",
+        "    headers = {\n",
+        "        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'}\n",
+        "    response = requests.get(url, headers=headers)\n",
+        "\n",
+        "    # Verificar si la solicitud fue exitosa\n",
+        "    if response.status_code == 200:\n",
+        "        soup = BeautifulSoup(response.text, 'html.parser')\n",
+        "        result = soup.find('a', class_='result__a')\n",
+        "        if result:\n",
+        "            return result['href']\n",
+        "        else:\n",
+        "            return \"No se encontró ningún resultado\"\n",
+        "    else:\n",
+        "        return f\"Error en la solicitud: {response.status_code}\"\n",
+        "\n",
+        "# Función para leer las palabras clave de Google Sheets\n",
+        "def leer_palabras_clave():\n",
+        "    # Leer los datos de la hoja de cálculo\n",
+        "    result = sheet.values().get(spreadsheetId=SPREADSHEET_ID, range=RANGO).execute()\n",
+        "    palabras_clave = result.get('values', [])\n",
+        "    return [fila[0] for fila in palabras_clave]\n",
+        "\n",
+        "# Función para escribir los resultados en Google Sheets\n",
+        "def escribir_resultados(rango, resultados):\n",
+        "    # Escribir los resultados en la hoja de cálculo\n",
+        "    body = {\n",
+        "        'values': resultados\n",
+        "    }\n",
+        "    sheet.values().update(\n",
+        "        spreadsheetId=SPREADSHEET_ID,\n",
+        "        range=rango,\n",
+        "        valueInputOption='RAW',\n",
+        "        body=body).execute()\n",
+        "\n",
+        "# Main\n",
+        "if __name__ == \"__main__\":\n",
+        "    # Leer palabras clave desde la hoja de cálculo\n",
+        "    palabras_clave = leer_palabras_clave()\n",
+        "    dominio = \"ejemplo.com\"  # Dominio específico donde realizar la búsqueda\n",
+        "    resultados = []\n",
+        "\n",
+        "    # Iterar sobre cada palabra clave y buscar en DuckDuckGo\n",
+        "    for palabra in palabras_clave:\n",
+        "        print(f\"Buscando '{palabra}' en {dominio}...\")\n",
+        "        url_encontrada = buscar_duckduckgo(palabra, dominio)\n",
+        "        resultados.append([url_encontrada])\n",
+        "        time.sleep(2)  # Pausa para evitar ser bloqueado por demasiadas solicitudes rápidas\n",
+        "\n",
+        "    # Escribir los resultados en la hoja de cálculo (en la columna B por ejemplo)\n",
+        "    escribir_resultados('Hoja1!B2', resultados)\n",
+        "    print(\"Búsqueda completada y resultados guardados.\")\n"
+      ]
+    }
+  ]
+}
